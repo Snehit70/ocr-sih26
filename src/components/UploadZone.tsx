@@ -1,171 +1,62 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
-import {
-  ClipboardCheck,
-  Cookie,
-  FileCheck,
-  FileImage,
-  Package,
-  ScanText,
-  Sparkles,
-  Upload,
-  X,
-  type LucideIcon,
-} from "lucide-react";
-import { SAMPLE_OCR as RAW_SAMPLES } from "@/lib/mock-data";
+import { useRef, useState } from "react";
+import { FileImage, Upload, X, type LucideIcon } from "lucide-react";
 
-export interface OcrSample {
-  key: string;
-  label: string;
-  hint: string;
-  text: string;
+export interface UploadZonePhoto {
+  photoId: string;
+  url: string;
+  name: string;
+  face?: string;
 }
 
 export interface UploadZoneProps {
-  panelArea: number;
-  onPanelAreaChange: (value: number) => void;
-  onFileSelect: (file: File, previewUrl: string) => void;
-  onSampleSelect: (text: string, label: string) => void;
+  photos: UploadZonePhoto[];
+  categoryHint: string;
+  onCategoryHintChange: (hint: string) => void;
+  onFilesSelect: (files: File[]) => void;
+  onRemovePhoto: (photoId: string) => void;
   currentStep: number;
   disabled?: boolean;
-  onClear?: () => void;
 }
 
 const STEPS: { label: string; icon: LucideIcon }[] = [
   { label: "Upload", icon: Upload },
-  { label: "OCR", icon: ScanText },
-  { label: "Validate", icon: ClipboardCheck },
-  { label: "Report", icon: FileCheck },
+  { label: "Analyze", icon: FileImage },
+  { label: "Review", icon: FileImage },
+  { label: "Confirm", icon: FileImage },
 ];
 
-const SAMPLE_ICONS: LucideIcon[] = [Cookie, Package, Sparkles];
-
-export const FALLBACK_SAMPLES: OcrSample[] = [
-  {
-    key: "biscuit",
-    label: "Compliant Biscuit",
-    hint: "All declarations present",
-    text: [
-      "SunFeast Gold Glucose Biscuits",
-      "ITC Limited, Virginia House, Kolkata 700001",
-      "Net Quantity: 300 g (12 N x 25 g)",
-      "MRP Rs. 45.00 (Inclusive of all taxes)",
-      "Unit Sale Price: Rs. 0.15 per g",
-      "Mfg Date: 02/2026   Exp Date: 08/2026",
-      "Batch No: BNG2145",
-      "Customer Care: 1800-425-4444, itccares@itc.in",
-      "FSSAI Lic No. 10012043001234",
-      "Country of Origin: India",
-    ].join("\n"),
-  },
-  {
-    key: "chips",
-    label: "Missing MRP Chips",
-    hint: "MRP declaration absent",
-    text: [
-      "Lay's Magic Masala Potato Chips",
-      "PepsiCo India Holdings, Gurugram, Haryana",
-      "Net Quantity: 73 g",
-      "Mfg Date: 01/2026",
-      "Best Before 4 Months from Manufacture",
-      "Batch No: CHD5520",
-      "Customer Care: 1800-208-8888",
-      "FSSAI Lic No. 10012043000987",
-      "Country of Origin: India",
-    ].join("\n"),
-  },
-  {
-    key: "soap",
-    label: "Small Font Soap",
-    hint: "Lettering below Table-I minimum",
-    text: [
-      "Mysore Sandal Soap",
-      "Karnataka Soaps & Detergents Ltd, Bengaluru",
-      "Net Quantity: 150 g",
-      "MRP Rs. 58.00 (Inclusive of all taxes)",
-      "Mfg Date: 12/2025   Batch No: MYS8821",
-      "Customer Care: 1800-419-0066",
-      "Country of Origin: India",
-    ].join("\n"),
-  },
+const CATEGORY_OPTIONS: { value: string; label: string }[] = [
+  { value: "auto", label: "Auto-detect" },
+  { value: "food-beverages", label: "Food and beverages" },
+  { value: "personal-care", label: "Personal care" },
+  { value: "household", label: "Household products" },
+  { value: "other", label: "Other" },
 ];
-
-function resolveSamples(): OcrSample[] {
-  try {
-    const raw: unknown = RAW_SAMPLES as unknown;
-    if (typeof raw === "string" && raw.trim().length > 0) {
-      return [{ ...FALLBACK_SAMPLES[0], text: raw }];
-    }
-    if (Array.isArray(raw)) {
-      const texts = (raw as unknown[])
-        .map((v) => String(v ?? ""))
-        .filter((s) => s.trim().length > 0);
-      if (texts.length > 0) {
-        return FALLBACK_SAMPLES.map((s, i) => ({
-          ...s,
-          text: texts[i % texts.length],
-        }));
-      }
-    }
-    if (raw !== null && typeof raw === "object") {
-      const record = raw as Record<string, unknown>;
-      const keys = Object.keys(record);
-      const values = keys
-        .map((k) => String(record[k] ?? ""))
-        .filter((s) => s.trim().length > 0);
-      if (values.length > 0) {
-        return FALLBACK_SAMPLES.map((s, i) => ({
-          ...s,
-          key: keys[i] ?? s.key,
-          text: values[i % values.length],
-        }));
-      }
-    }
-  } catch {
-    // Fall through to built-in samples.
-  }
-  return FALLBACK_SAMPLES;
-}
 
 export default function UploadZone({
-  panelArea,
-  onPanelAreaChange,
-  onFileSelect,
-  onSampleSelect,
+  photos,
+  categoryHint,
+  onCategoryHintChange,
+  onFilesSelect,
+  onRemovePhoto,
   currentStep,
   disabled = false,
-  onClear,
 }: UploadZoneProps) {
-  const samples = useMemo(() => resolveSamples(), []);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [dragActive, setDragActive] = useState(false);
-  const [thumb, setThumb] = useState<string | null>(null);
-  const [fileName, setFileName] = useState<string | null>(null);
 
   function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
-    const file = files[0];
-    if (!file.type.startsWith("image/")) return;
-    if (thumb && thumb.startsWith("blob:")) URL.revokeObjectURL(thumb);
-    const url = URL.createObjectURL(file);
-    setThumb(url);
-    setFileName(file.name);
-    onFileSelect(file, url);
-  }
-
-  function handleRemove(e: React.MouseEvent) {
-    e.stopPropagation();
-    if (thumb && thumb.startsWith("blob:")) URL.revokeObjectURL(thumb);
-    setThumb(null);
-    setFileName(null);
-    onClear?.();
+    const images = Array.from(files).filter((f) => f.type.startsWith("image/"));
+    if (images.length > 0) onFilesSelect(images);
   }
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
       {/* Progress steps */}
-      <ol className="mb-5 flex items-start" aria-label="Scan pipeline progress">
+      <ol className="mb-5 flex items-start" aria-label="Inspection progress">
         {STEPS.map((step, i) => {
           const done = i < currentStep;
           const active = i === currentStep;
@@ -209,7 +100,34 @@ export default function UploadZone({
         })}
       </ol>
 
-      {/* Dropzone */}
+      {/* Category select: manual choice wins over model inference (PRD stories 4-6). */}
+      <div>
+        <label
+          htmlFor="category-hint"
+          className="block text-sm font-medium text-slate-700"
+        >
+          Package category
+        </label>
+        <select
+          id="category-hint"
+          value={categoryHint}
+          disabled={disabled}
+          onChange={(e) => onCategoryHintChange(e.target.value)}
+          className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-60 sm:w-72"
+        >
+          {CATEGORY_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+        <p className="mt-1 text-xs text-slate-500">
+          Optional. Auto-detect lets the model suggest one; your choice overrides
+          the suggestion. The reviewer can still correct it before confirming.
+        </p>
+      </div>
+
+      {/* Dropzone: multiple photos of the same package. */}
       <div
         role="button"
         tabIndex={disabled ? -1 : 0}
@@ -233,7 +151,7 @@ export default function UploadZone({
           setDragActive(false);
           if (!disabled) handleFiles(e.dataTransfer.files);
         }}
-        className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-4 py-8 text-center transition-colors ${
+        className={`mt-4 flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-4 py-8 text-center transition-colors ${
           disabled
             ? "cursor-not-allowed border-slate-200 bg-slate-50 opacity-60"
             : dragActive
@@ -245,6 +163,7 @@ export default function UploadZone({
           ref={inputRef}
           type="file"
           accept="image/*"
+          multiple
           className="hidden"
           disabled={disabled}
           onChange={(e) => {
@@ -252,96 +171,62 @@ export default function UploadZone({
             e.target.value = "";
           }}
         />
-        {thumb ? (
-          <div className="flex items-center gap-3">
-            <img
-              src={thumb}
-              alt="Label preview thumbnail"
-              className="h-20 w-20 rounded-md border border-slate-200 object-cover"
-            />
-            <div className="text-left">
-              <p className="flex items-center gap-1.5 text-sm font-medium text-slate-900">
-                <FileImage className="h-4 w-4 text-slate-500" aria-hidden="true" />
-                <span className="max-w-40 truncate sm:max-w-56">{fileName ?? "label.jpg"}</span>
-              </p>
-              <p className="mt-0.5 text-xs text-slate-500">Click or drop to replace</p>
-              <button
-                type="button"
-                onClick={handleRemove}
-                className="mt-1.5 inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100"
-              >
-                <X className="h-3.5 w-3.5" aria-hidden="true" /> Remove
-              </button>
-            </div>
-          </div>
-        ) : (
-          <>
-            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 text-blue-700">
-              <Upload className="h-6 w-6" aria-hidden="true" />
-            </span>
-            <p className="text-sm font-semibold text-slate-900">
-              Drag &amp; drop a label photo, or click to browse
-            </p>
-            <p className="text-xs text-slate-500">Accepts image/* — front or back of pack</p>
-          </>
-        )}
-      </div>
-
-      {/* Panel area */}
-      <div className="mt-4">
-        <label
-          htmlFor="panel-area"
-          className="block text-sm font-medium text-slate-700"
-        >
-          Principal display panel area
-        </label>
-        <div className="mt-1 flex items-center gap-2">
-          <input
-            id="panel-area"
-            type="number"
-            min={1}
-            step={1}
-            value={panelArea}
-            disabled={disabled}
-            onChange={(e) => onPanelAreaChange(Number(e.target.value))}
-            className="w-32 rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-60"
-          />
-          <span className="text-sm text-slate-500">cm²</span>
-        </div>
-        <p className="mt-1 text-xs text-slate-500">
-          Used for the Table-I minimum font-size lookup.
+        <span className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 text-blue-700">
+          <Upload className="h-6 w-6" aria-hidden="true" />
+        </span>
+        <p className="text-sm font-semibold text-slate-900">
+          Drag &amp; drop package photos, or click to browse
+        </p>
+        <p className="text-xs text-slate-500">
+          Multiple images allowed — photograph the front, back, and sides of one
+          package
         </p>
       </div>
 
-      {/* Samples */}
-      <div className="mt-4">
-        <p className="text-sm font-medium text-slate-700">No photo handy? Try a sample label</p>
-        <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
-          {samples.map((s, i) => {
-            const Icon = SAMPLE_ICONS[i % SAMPLE_ICONS.length];
-            return (
-              <button
-                key={s.key}
-                type="button"
-                disabled={disabled}
-                onClick={() => {
-                  if (thumb && thumb.startsWith("blob:")) URL.revokeObjectURL(thumb);
-                  setThumb(null);
-                  setFileName(null);
-                  onSampleSelect(s.text, s.label);
-                }}
-                className="flex flex-col items-start gap-1 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-left shadow-sm transition-colors hover:border-blue-400 hover:bg-blue-50/60 disabled:cursor-not-allowed disabled:opacity-60"
+      {/* Previews with remove buttons. */}
+      {photos.length > 0 && (
+        <div className="mt-4">
+          <p className="text-sm font-medium text-slate-700">
+            {photos.length} photo{photos.length === 1 ? "" : "s"} in this inspection
+          </p>
+          <ul className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {photos.map((photo) => (
+              <li
+                key={photo.photoId}
+                className="overflow-hidden rounded-lg border border-slate-200 bg-slate-50"
               >
-                <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-900">
-                  <Icon className="h-4 w-4 text-blue-700" aria-hidden="true" />
-                  {s.label}
-                </span>
-                <span className="text-xs text-slate-500">{s.hint}</span>
-              </button>
-            );
-          })}
+                <img
+                  src={photo.url}
+                  alt={photo.name}
+                  className="h-28 w-full object-cover"
+                />
+                <div className="flex items-center justify-between gap-2 px-2 py-1.5">
+                  <span className="flex min-w-0 items-center gap-1 text-xs text-slate-600">
+                    <FileImage
+                      className="h-3.5 w-3.5 shrink-0 text-slate-400"
+                      aria-hidden="true"
+                    />
+                    <span className="truncate">
+                      {photo.name}
+                      {photo.face && photo.face !== "unknown" ? ` · ${photo.face}` : ""}
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => onRemovePhoto(photo.photoId)}
+                    aria-label={`Remove ${photo.name}`}
+                    className="inline-flex shrink-0 items-center gap-0.5 rounded-md border border-slate-300 bg-white px-1.5 py-0.5 text-xs font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-60"
+                  >
+                    <X className="h-3.5 w-3.5" aria-hidden="true" />
+                    Remove
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
         </div>
-      </div>
+      )}
     </div>
   );
 }

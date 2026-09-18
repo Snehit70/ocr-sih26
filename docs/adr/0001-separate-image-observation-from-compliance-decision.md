@@ -1,0 +1,3 @@
+# Separate image observation from compliance decision
+
+For the SIH demo, a vision-language model proposes declarations and their locations in package photographs. Explicit, versioned rules evaluate those observations. Each rule records its source and effective date, and the team reviews its wording before the demo. A reviewer can correct extracted text, accept or reject a suspected violation, and confirm the report before export. The original model observation remains linked to the photograph. This keeps model interpretation visible and prevents a free-form model answer from becoming an unexplained legal verdict. A compliance score remains available for internal testing; it does not determine the reviewer-confirmed result.

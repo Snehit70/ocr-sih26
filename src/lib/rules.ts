@@ -1,440 +1,525 @@
 /**
- * Pure rules engine for Legal Metrology (Packaged Commodities) Rules, 2011.
+ * Cited rules engine for NyayaPack (GitHub issue #6: "Apply cited rules
+ * with honest not-assessed results").
  *
- * - `extractFields` : regex-based field extraction over raw OCR text.
- * - `runComplianceChecks` : 10 mandatory-declaration checks (Rule 6 family).
- * - `computeFontAnalysis` : Table-I minimum letter-height lookup.
- * - `buildReport` : assembles a `ProductReport` from OCR text.
+ * - `RULE_CATALOG`: the 5 supported checks from `docs/legal-rule-sources.md`,
+ *   each with exact legal citation, gazette number, effective date, source
+ *   URL, applicability conditions, exceptions and expected declaration.
+ * - `evaluateRules(observations, ctx)`: honest evaluation over structured
+ *   observations plus reviewer context. A declaration is a suspected
+ *   violation ONLY when the rule applies, the relevant view is readable and
+ *   the reviewer confirmed photo coverage. Everything else without enough
+ *   evidence or rule support is `not_assessed` — never a pass or a failure.
+ * - `computeHeadline(results)`: the ONLY overall wording. A numeric score
+ *   survives ONLY as `computeInternalScore` for internal testing and never
+ *   decides the headline or any legal wording.
  *
- * All functions are pure, dependency-free and fully typed (no `any`).
+ * Deleted per the ticket (do NOT reintroduce): Rule 6(1)(d)(v), Rule
+ * 6(1)(f/g/h), Table-I font simulation, unit-price / batch / dimensions
+ * checks, the generic-name regex list, origin-as-warning, and the
+ * weighted-score model. Font measurement is owned by the readability agent
+ * (issue #8); extraction patterns are owned by the observations agent
+ * (issue #5). All functions are pure, dependency-free and fully typed
+ * (no `any`).
  */
 
 import type {
   CheckStatus,
   ComplianceCheck,
   FontAnalysis,
+  ObservedField,
+  ObservedInput,
   OverallStatus,
   ProductReport,
+  ReportHeadline,
+  ReviewContext,
+  RuleCatalogEntry,
+  RuleResult,
 } from './types';
 
 /* ------------------------------------------------------------------ */
-/* Regex library                                                       */
+/* Source URLs (docs/legal-rule-sources.md)                            */
 /* ------------------------------------------------------------------ */
 
-const RE = {
-  mrpAmount: /M\.?R\.?P\.?.*?(?:Rs\.?|₹|INR)\s?[\d,.]+/i,
-  mrpTaxNote: /inclusive\s+of\s+all\s+taxes/i,
-  netQty:
-    /Net\s+(?:Qty|Quantity|Wt|Weight|Volume|Content).*?[\d.]+\s?(kg|g\b|gram|litre|liter|l\b|ml|m\b|cm|metre|meter|piece|pieces|pcs|pair|set)/i,
-  mfgDate:
-    /(Mfg|Mfd|Manufactured|Mfg\.?\s*Dt|Date\s*of\s*(?:Mfg|Manufacture)|Packed(?:\s*on)?).*?(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec|\d{1,2}\/\d{4}|\d{1,2}-\d{4}|\d{4})/i,
-  phone: /(\d{10}|1800[\d\s-]+|1860[\d\s-]+)/,
-  email: /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/,
-  careKeyword:
-    /(consumer\s*care|customer\s*care|consumer\s*service|feedback|complaint|toll[\s-]?free|helpline)/i,
-  origin: /(country\s*of\s*origin|made\s*in|product\s*of|manufactured\s*in)\s*:?\s*([A-Za-z ]+)/i,
-  unitPrice:
-    /(unit\s*sale\s*price|price\s*per|per\s*(g|kg|ml|l|100\s?g|100\s?ml))\s*:?\s*(?:Rs\.?|₹)?\s?[\d,.]+/i,
-  dimensions:
-    /(dimensions?|size|length\s*[×x]\s*width|(\d+(\.\d+)?\s?(cm|mm|m)\s*[×x]\s*\d+(\.\d+)?\s?(cm|mm|m)))/i,
-  genericName:
-    /(biscuits?|chips|soap|oil|atta|rice|sugar|tea|detergent|shampoo|noodles|chocolate|milk)/i,
-  address: /[A-Za-z0-9#\/,.-]+\s*,.*(road|street|estate|area|nagar|plot|industrial|mumbai|delhi|bengaluru|chennai|kolkata|india)/i,
-  makerPrefix: /(manufactured\s*by|mfd\s*by|packed\s*by|packer|imported\s*by|importer|marketed\s*by)/i,
-} as const;
-
-/** Field keys returned by `extractFields`. */
-export type ExtractedFieldKey =
-  | 'mrp'
-  | 'netQty'
-  | 'mfgDate'
-  | 'phone'
-  | 'email'
-  | 'consumerCareBlock'
-  | 'address'
-  | 'countryOfOrigin'
-  | 'productName'
-  | 'unitPrice'
-  | 'dimensions'
-  | 'manufacturerBlock';
+const COMPILED_RULES_URL =
+  'https://consumeraffairs.nic.in/sites/default/files/file-uploads/latestnews/LM_PCR_All_Amendements.pdf';
+const GSR_629_URL =
+  'https://consumeraffairs.nic.in/sites/default/files/uploads/legal-metrology-acts-rules/8%28xii%29_0.pdf';
+const GSR_779_URL = 'https://egazette.gov.in/WriteReadData/2021/230946.pdf';
 
 /* ------------------------------------------------------------------ */
-/* extractFields                                                       */
+/* RULE_CATALOG: the 5 supported checks                                */
+/* ------------------------------------------------------------------ */
+
+export const RULE_CATALOG: readonly RuleCatalogEntry[] = [
+  {
+    ruleId: 'manufacturer',
+    label: 'Manufacturer / packer / importer name and address',
+    legalCitation: 'Rule 6(1)(a)',
+    gazetteNumber: 'G.S.R. 629(E)',
+    effectiveFrom: '2018-01-01',
+    sourceUrl: GSR_629_URL,
+    appliesWhen:
+      'A Chapter II retail package. The importer name-and-address limb applies only when the reviewer confirms importStatus "imported".',
+    exceptions:
+      'Chapter II exclusions (Rule 3 as substituted: packages above 25 kg or 25 L, specified cement/fertiliser/farm-produce bags above 50 kg, industrial/institutional packs); Rule 26 exemptions (e.g. garments and hosiery sold loose or open); medical-device packs follow the Medical Devices Rules, 2017 per G.S.R. 778(E); food articles follow the Food Safety and Standards Act for this clause — flagged for review, never auto-failed.',
+    expectedDeclaration:
+      'Name and complete address of the manufacturer or packer; importer name and address for an imported package.',
+  },
+  {
+    ruleId: 'net_quantity',
+    label: 'Net quantity (declared text only)',
+    legalCitation: 'Rule 6(1)(c)',
+    gazetteNumber:
+      'Legal Metrology (Packaged Commodities) Rules, 2011, compiled text (no later amendment applied to this clause in the demo set)',
+    effectiveFrom: '2011-04-01',
+    sourceUrl: COMPILED_RULES_URL,
+    appliesWhen: 'A Chapter II retail package.',
+    exceptions:
+      'Chapter II / Rule 26 exclusions (same scope limits as the manufacturer check). A photograph verifies the declared text only and can never establish the actual contents of the package.',
+    expectedDeclaration:
+      'Net quantity by standard unit of weight or measure, or number, as declared on the package.',
+  },
+  {
+    ruleId: 'mrp',
+    label: 'Maximum retail price inclusive of all taxes',
+    legalCitation: 'Rule 6(1)(e)',
+    gazetteNumber: 'G.S.R. 779(E), commencement deferred to 1 October 2022 by G.S.R. 226(E)',
+    effectiveFrom: '2022-10-01',
+    sourceUrl: GSR_779_URL,
+    appliesWhen: 'A Chapter II retail package.',
+    exceptions:
+      'Alcoholic beverages and specified essential commodities have special pricing provisions; Chapter II / Rule 26 exclusions; medical-device packs per G.S.R. 778(E).',
+    expectedDeclaration:
+      'Maximum retail price inclusive of all taxes, in Indian currency.',
+  },
+  {
+    ruleId: 'manufacture_date',
+    label: 'Month and year of manufacture (where required)',
+    legalCitation: 'Rule 6(1)(d)',
+    gazetteNumber: 'G.S.R. 779(E), commencement deferred to 1 October 2022 by G.S.R. 226(E)',
+    effectiveFrom: '2022-10-01',
+    sourceUrl: GSR_779_URL,
+    appliesWhen:
+      'A Chapter II retail package whose category has a clear manufacture-date requirement under the current wording. NEVER a universal packing/import-date check: G.S.R. 779(E) removed the words "or pre-packed or imported" from this clause.',
+    exceptions:
+      'Food, seeds, cosmetics, bidis, incense sticks and specified LPG packages have special provisions. Any unclear or unknown category (including the broad "food-beverages", "personal-care" and "other" hints, which cannot settle those exceptions) is not_assessed, never failed.',
+    expectedDeclaration:
+      'Month and year of manufacture, where the reviewed rule requires it for the category.',
+  },
+  {
+    ruleId: 'consumer_care',
+    label: 'Consumer care contact',
+    legalCitation: 'Rule 6(2)',
+    gazetteNumber:
+      'Legal Metrology (Packaged Commodities) Rules, 2011, compiled text (see also Department FAQ questions 46-47)',
+    effectiveFrom: '2011-04-01',
+    sourceUrl: COMPILED_RULES_URL,
+    appliesWhen: 'A Chapter II retail package.',
+    exceptions:
+      'Check the rule text and any category law before treating a missing subfield as a violation: a missing subfield (contact name, address, telephone, email) is flagged for review, never an automatic violation. Food MRP, net weight and consumer-care details remain under these rules per FAQ question 46.',
+    expectedDeclaration:
+      'Consumer-contact name and address, telephone number and email address for complaints (presence check).',
+  },
+];
+
+/* ------------------------------------------------------------------ */
+/* Applicability helpers (pure)                                        */
 /* ------------------------------------------------------------------ */
 
 /**
- * Extract raw declaration snippets from OCR text via regex.
- * Missing fields are simply absent from the returned record.
+ * Lowercase category tokens that signal the package is outside the demo's
+ * Chapter II / Rule 26 scope (industrial/institutional use, bulk packs,
+ * loose garments, medical devices). Matching is substring-based and
+ * deliberately conservative: a false match only yields not_assessed, never
+ * a false violation. Full exemption inputs (pack size, end use) are future
+ * ReviewContext fields owned with the review flow (issue #7).
  */
-export function extractFields(ocrText: string): Record<string, string> {
-  const text: string = ocrText ?? '';
-  const out: Record<string, string> = {};
+const CHAPTER_II_EXEMPT_TOKENS: readonly string[] = [
+  'industrial',
+  'institutional',
+  'bulk',
+  'cement',
+  'fertiliser',
+  'fertilizer',
+  'farm-produce',
+  'medical-device',
+  'loose',
+  'exempt',
+];
 
-  const mrp = text.match(RE.mrpAmount);
-  if (mrp) {
-    const taxNote = text.match(RE.mrpTaxNote);
-    out['mrp'] = taxNote ? `${mrp[0].trim()} (${taxNote[0].trim()})` : mrp[0].trim();
-  }
+/**
+ * Tokens marking categories with special month-year provisions under
+ * Rule 6(1)(d). The broad demo hint "personal-care" is included because it
+ * contains cosmetics, whose provision this engine cannot settle.
+ */
+const DATE_SPECIAL_TOKENS: readonly string[] = [
+  'food',
+  'seed',
+  'cosmet',
+  'bidi',
+  'incense',
+  'lpg',
+  'personal-care',
+];
 
-  const netQty = text.match(RE.netQty);
-  if (netQty) out['netQty'] = netQty[0].trim();
+/** Category hints too vague to settle the Rule 6(1)(d) exceptions. */
+const DATE_UNCLEAR_CATEGORIES: readonly string[] = ['', 'unknown', 'auto', 'other'];
 
-  const mfg = text.match(RE.mfgDate);
-  if (mfg) out['mfgDate'] = mfg[0].trim();
-
-  const phone = text.match(RE.phone);
-  if (phone) out['phone'] = phone[0].trim();
-
-  const email = text.match(RE.email);
-  if (email) out['email'] = email[0].trim();
-
-  if (RE.careKeyword.test(text)) {
-    const lines: string[] = text
-      .split('\n')
-      .filter((l: string) => RE.careKeyword.test(l) || RE.phone.test(l) || RE.email.test(l));
-    if (lines.length > 0) out['consumerCareBlock'] = lines.join(' | ').trim();
-    else out['consumerCareBlock'] = (text.match(RE.careKeyword) as RegExpMatchArray)[0].trim();
-  }
-
-  const addr = text.match(RE.address);
-  if (addr) out['address'] = addr[0].trim();
-
-  const origin = text.match(RE.origin);
-  if (origin) out['countryOfOrigin'] = origin[0].trim();
-
-  // Product name: first non-empty line containing a known generic noun,
-  // otherwise the first non-empty line.
-  const nonEmpty: string[] = text.split('\n').map((l: string) => l.trim()).filter(Boolean);
-  const generic: string | undefined = nonEmpty.find((l: string) => RE.genericName.test(l));
-  if (generic) out['productName'] = generic;
-  else if (nonEmpty.length > 0) out['productName'] = nonEmpty[0] as string;
-
-  const unit = text.match(RE.unitPrice);
-  if (unit) out['unitPrice'] = unit[0].trim();
-
-  const dims = text.match(RE.dimensions);
-  // Only treat as a real dimension declaration if it carries measurements
-  // with units (e.g. "10 cm x 6 cm"), not the bare word "Size".
-  if (dims && /\d/.test(dims[0])) out['dimensions'] = dims[0].trim();
-
-  if (RE.makerPrefix.test(text)) {
-    const line: string | undefined = text
-      .split('\n')
-      .find((l: string) => RE.makerPrefix.test(l));
-    out['manufacturerBlock'] = (line ?? (text.match(RE.makerPrefix) as RegExpMatchArray)[0]).trim();
-  }
-
-  return out;
+function normalizedCategory(category: string): string {
+  return (category ?? '').trim().toLowerCase();
 }
 
-/* ------------------------------------------------------------------ */
-/* runComplianceChecks                                                 */
-/* ------------------------------------------------------------------ */
+function containsToken(normalized: string, tokens: readonly string[]): boolean {
+  return tokens.some((token) => token.length > 0 && normalized.includes(token));
+}
 
-function mk(
-  id: string,
-  label: string,
-  ruleRef: string,
-  status: CheckStatus,
-  message: string,
-  extra?: Partial<Pick<ComplianceCheck, 'extractedText' | 'expected'>>,
-): ComplianceCheck {
-  return { id, label, ruleRef, status, message, ...extra };
+/** True when the category signals a Chapter II / Rule 26 exclusion. */
+function isChapterIIExempt(category: string): boolean {
+  return containsToken(normalizedCategory(category), CHAPTER_II_EXEMPT_TOKENS);
 }
 
 /**
- * Run the 10 mandatory-declaration checks over OCR text.
- *
- * Verdict policy per check: regex found + required format keywords => pass;
- * found but malformed/incomplete => warning; absent => fail.
+ * True when the month-year rule cannot be applied: an excepted category, or
+ * a hint too vague to settle the food/seeds/cosmetics/bidis/incense/LPG
+ * special provisions.
  */
-export function runComplianceChecks(ocrText: string, panelAreaCm2?: number): ComplianceCheck[] {
-  const text: string = ocrText ?? '';
-  const f: Record<string, string> = extractFields(text);
-  void panelAreaCm2; // reserved: future geometry-aware checks (free space, sticker overlap).
+function isDateRuleUnclear(category: string): boolean {
+  const normalized = normalizedCategory(category);
+  if (DATE_UNCLEAR_CATEGORIES.includes(normalized)) return true;
+  return containsToken(normalized, DATE_SPECIAL_TOKENS);
+}
 
-  const checks: ComplianceCheck[] = [];
-
-  // 1. Manufacturer / packer / importer name + address — Rule 6(1)(a)
-  if (f['manufacturerBlock'] && f['address']) {
-    checks.push(
-      mk('manufacturer', 'Manufacturer / Packer / Importer', 'Rule 6(1)(a)', 'pass',
-        'Name with Manufactured/Packed by prefix and full address present.',
-        { extractedText: `${f['manufacturerBlock']} | ${f['address']}`, expected: 'Name with prefix + complete address' }),
-    );
-  } else if (f['manufacturerBlock'] || f['address']) {
-    checks.push(
-      mk('manufacturer', 'Manufacturer / Packer / Importer', 'Rule 6(1)(a)', 'warning',
-        'Name or address found but incomplete — both name (with prefix) and full address are required.',
-        { extractedText: f['manufacturerBlock'] ?? f['address'], expected: 'Name with prefix + complete address' }),
-    );
-  } else {
-    checks.push(
-      mk('manufacturer', 'Manufacturer / Packer / Importer', 'Rule 6(1)(a)', 'fail',
-        'Missing manufacturer/packer/importer name and address. Add "Manufactured by …" with full address.',
-        { expected: 'Name with prefix + complete address' }),
-    );
-  }
-
-  // 2. Country of origin (imports) — Rule 6(1)(d)(v) / Legal Metrology import declarations
-  const looksImported: boolean = /imported\s*by|importer/i.test(text);
-  if (f['countryOfOrigin']) {
-    checks.push(
-      mk('origin', 'Country of Origin', 'Rule 6(1)(d)(v)', 'pass',
-        'Country of origin declared.',
-        { extractedText: f['countryOfOrigin'], expected: 'Country of Origin: …' }),
-    );
-  } else if (looksImported) {
-    checks.push(
-      mk('origin', 'Country of Origin', 'Rule 6(1)(d)(v)', 'fail',
-        'Imported pack but country of origin is missing — mandatory for imports.',
-        { expected: 'Country of Origin: …' }),
-    );
-  } else {
-    checks.push(
-      mk('origin', 'Country of Origin', 'Rule 6(1)(d)(v)', 'warning',
-        'Country of origin not explicitly stated. Required for imports; recommended otherwise ("Made in India").',
-        { expected: 'Country of Origin: …' }),
-    );
-  }
-
-  // 3. Generic product name — Rule 6(1)(b)
-  if (f['productName'] && RE.genericName.test(f['productName'])) {
-    checks.push(
-      mk('product_name', 'Common / Generic Name', 'Rule 6(1)(b)', 'pass',
-        'Generic product name present.',
-        { extractedText: f['productName'], expected: 'Common name e.g. Biscuits, Soap' }),
-    );
-  } else if (f['productName']) {
-    checks.push(
-      mk('product_name', 'Common / Generic Name', 'Rule 6(1)(b)', 'warning',
-        'A product line was found but no recognisable generic name — verify it names the commodity.',
-        { extractedText: f['productName'], expected: 'Common name e.g. Biscuits, Soap' }),
-    );
-  } else {
-    checks.push(
-      mk('product_name', 'Common / Generic Name', 'Rule 6(1)(b)', 'fail',
-        'Generic product name missing.',
-        { expected: 'Common name e.g. Biscuits, Soap' }),
-    );
-  }
-
-  // 4. Net quantity in standard units — Rule 6(1)(d)
-  const STANDARD_UNIT = /(kg|g\b|gram|litre|liter|l\b|ml|m\b|cm|metre|meter|piece|pieces|pcs|pair|set)/i;
-  if (f['netQty'] && STANDARD_UNIT.test(f['netQty'])) {
-    checks.push(
-      mk('net_quantity', 'Net Quantity', 'Rule 6(1)(d)', 'pass',
-        'Net quantity declared in standard units.',
-        { extractedText: f['netQty'], expected: 'Net Qty: e.g. 200 g / 1 L / 1 piece' }),
-    );
-  } else if (/net\s*(qty|quantity|wt|weight|volume|content)/i.test(text)) {
-    checks.push(
-      mk('net_quantity', 'Net Quantity', 'Rule 6(1)(d)', 'warning',
-        'Net quantity line found but unit is non-standard — use kg/g, L/ml, m/cm, piece/pair/set.',
-        { extractedText: text.match(/net\s*(qty|quantity|wt|weight|volume|content).*/i)?.[0].trim(), expected: 'Net Qty in standard units' }),
-    );
-  } else {
-    checks.push(
-      mk('net_quantity', 'Net Quantity', 'Rule 6(1)(d)', 'fail',
-        'Net quantity missing. Declare as e.g. "Net Qty: 200 g".',
-        { expected: 'Net Qty in standard units' }),
-    );
-  }
-
-  // 5. Month + year of manufacture — Rule 6(1)(c)
-  if (f['mfgDate']) {
-    const hasMonthYear: boolean =
-      /(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)/i.test(f['mfgDate']) ||
-      /\d{1,2}[\/-]\d{4}/.test(f['mfgDate']);
-    if (hasMonthYear) {
-      checks.push(
-        mk('mfg_date', 'Month & Year of Manufacture', 'Rule 6(1)(c)', 'pass',
-          'Month and year of manufacture/packing declared.',
-          { extractedText: f['mfgDate'], expected: 'Mfd: MM/YYYY or Mon YYYY' }),
-      );
-    } else {
-      checks.push(
-        mk('mfg_date', 'Month & Year of Manufacture', 'Rule 6(1)(c)', 'warning',
-          'A manufacture reference exists but month+year format is unclear — use "Mfd: MM/YYYY".',
-          { extractedText: f['mfgDate'], expected: 'Mfd: MM/YYYY or Mon YYYY' }),
-      );
+function findObservation(
+  observations: ObservedInput[],
+  field: ObservedField,
+): ObservedInput | null {
+  let fallback: ObservedInput | null = null;
+  for (const observation of observations) {
+    if (observation.field !== field) continue;
+    if (fallback === null) fallback = observation;
+    if (
+      observation.value !== null &&
+      observation.value.trim().length > 0 &&
+      !observation.needsReview
+    ) {
+      return observation;
     }
-  } else {
-    checks.push(
-      mk('mfg_date', 'Month & Year of Manufacture', 'Rule 6(1)(c)', 'fail',
-        'Month and year of manufacture/packing missing.',
-        { expected: 'Mfd: MM/YYYY or Mon YYYY' }),
-    );
   }
-
-  // 6. MRP with Rs/₹ + "inclusive of all taxes" — Rule 6(1)(e)
-  if (f['mrp'] && RE.mrpTaxNote.test(text)) {
-    checks.push(
-      mk('mrp', 'Maximum Retail Price (MRP)', 'Rule 6(1)(e)', 'pass',
-        'MRP with currency symbol and "inclusive of all taxes" present.',
-        { extractedText: f['mrp'], expected: 'MRP Rs. X (Inclusive of all taxes)' }),
-    );
-  } else if (f['mrp']) {
-    checks.push(
-      mk('mrp', 'Maximum Retail Price (MRP)', 'Rule 6(1)(e)', 'warning',
-        'MRP amount found but the phrase "inclusive of all taxes" is missing.',
-        { extractedText: f['mrp'], expected: 'MRP Rs. X (Inclusive of all taxes)' }),
-    );
-  } else {
-    checks.push(
-      mk('mrp', 'Maximum Retail Price (MRP)', 'Rule 6(1)(e)', 'fail',
-        'MRP missing. Print "MRP Rs. … (Inclusive of all taxes)".',
-        { expected: 'MRP Rs. X (Inclusive of all taxes)' }),
-    );
-  }
-
-  // 7. Consumer care — name + address + phone + email — Rule 6(1)(g)
-  const careParts: number = [f['consumerCareBlock'], f['phone'], f['email'], f['address']].filter(Boolean).length;
-  if (f['consumerCareBlock'] && f['phone'] && f['email']) {
-    checks.push(
-      mk('consumer_care', 'Consumer Care Details', 'Rule 6(1)(g)', 'pass',
-        'Consumer-care name, address, phone and email present.',
-        { extractedText: f['consumerCareBlock'], expected: 'Consumer Care: name, address, phone, email' }),
-    );
-  } else if (careParts >= 2) {
-    checks.push(
-      mk('consumer_care', 'Consumer Care Details', 'Rule 6(1)(g)', 'warning',
-        'Consumer-care block partially present — name, address, phone and email are all required.',
-        { extractedText: f['consumerCareBlock'] ?? f['phone'] ?? f['email'], expected: 'Consumer Care: name, address, phone, email' }),
-    );
-  } else {
-    checks.push(
-      mk('consumer_care', 'Consumer Care Details', 'Rule 6(1)(g)', 'fail',
-        'Consumer-care details missing. Add name, address, phone and email.',
-        { expected: 'Consumer Care: name, address, phone, email' }),
-    );
-  }
-
-  // 8. Dimensions where relevant — Rule 6(1)(h) (commodities sold by length/area/volume descriptors)
-  const needsDims: boolean = /(bedsheet|fabric|cloth|foil|wrap|pipe|cable|carpet|mat\b)/i.test(text);
-  if (f['dimensions']) {
-    checks.push(
-      mk('dimensions', 'Dimensions (where applicable)', 'Rule 6(1)(h)', 'pass',
-        'Dimensions declared.',
-        { extractedText: f['dimensions'], expected: 'Dimensions e.g. 10 cm x 6 cm' }),
-    );
-  } else if (needsDims) {
-    checks.push(
-      mk('dimensions', 'Dimensions (where applicable)', 'Rule 6(1)(h)', 'fail',
-        'Product type needs dimensions but none are declared.',
-        { expected: 'Dimensions e.g. 10 cm x 6 cm' }),
-    );
-  } else {
-    // Not applicable to this commodity class — record a passing note.
-    checks.push(
-      mk('dimensions', 'Dimensions (where applicable)', 'Rule 6(1)(h)', 'pass',
-        'Not applicable to this commodity; no dimension declaration required.',
-        { expected: 'Dimensions only where relevant' }),
-    );
-  }
-
-  // 9. Unit sale price — Rule 6(1) proviso (unit pricing per g/kg, ml/L)
-  if (f['unitPrice'] && /\d/.test(f['unitPrice']) && /\.\d{2}/.test(text.match(RE.unitPrice)?.[0] ?? '')) {
-    checks.push(
-      mk('unit_price', 'Unit Sale Price', 'Rule 6(1) proviso', 'pass',
-        'Unit sale price with 2-decimal pricing present.',
-        { extractedText: f['unitPrice'], expected: 'Unit Sale Price: Rs. X per g/kg/ml/L' }),
-    );
-  } else if (f['unitPrice']) {
-    checks.push(
-      mk('unit_price', 'Unit Sale Price', 'Rule 6(1) proviso', 'warning',
-        'Unit price line found but not in 2-decimal format — use e.g. "Rs. 1.25 per g".',
-        { extractedText: f['unitPrice'], expected: 'Unit Sale Price: Rs. X.XX per g/kg/ml/L' }),
-    );
-  } else {
-    checks.push(
-      mk('unit_price', 'Unit Sale Price', 'Rule 6(1) proviso', 'fail',
-        'Unit sale price missing. Add e.g. "Unit Sale Price: Rs. 1.25 per g".',
-        { expected: 'Unit Sale Price: Rs. X.XX per g/kg/ml/L' }),
-    );
-  }
-
-  // 10. General manner of declarations — Rule 7 / Rule 8 (legibility, free space, no tampering)
-  const legible: boolean = text.trim().length > 60;
-  const stickerNote: boolean = /sticker|over\s*label|tamper/i.test(text);
-  if (legible && !stickerNote) {
-    checks.push(
-      mk('general_manner', 'Manner of Declaration (legibility)', 'Rule 7 / Rule 8', 'pass',
-        'Declarations legible with adequate free space around net quantity; no sticker-tampering signs.',
-        { expected: 'Legible, indelible, prominent declarations' }),
-    );
-  } else if (stickerNote) {
-    checks.push(
-      mk('general_manner', 'Manner of Declaration (legibility)', 'Rule 7 / Rule 8', 'warning',
-        'Possible sticker / over-labelling detected — verify declarations are not obscured or tampered.',
-        { expected: 'Legible, indelible, prominent declarations' }),
-    );
-  } else {
-    checks.push(
-      mk('general_manner', 'Manner of Declaration (legibility)', 'Rule 7 / Rule 8', 'warning',
-        'OCR text too sparse to confirm legibility — verify print is indelible, prominent and tamper-free.',
-        { expected: 'Legible, indelible, prominent declarations' }),
-    );
-  }
-
-  return checks;
+  return fallback;
 }
 
-/* ------------------------------------------------------------------ */
-/* computeFontAnalysis                                                 */
-/* ------------------------------------------------------------------ */
-
-/** Table-I minimum letter height (mm) for a principal-display-panel area. */
-export function minLetterHeightMm(panelAreaCm2: number): number {
-  if (panelAreaCm2 <= 50) return 1.0;
-  if (panelAreaCm2 <= 100) return 1.5;
-  if (panelAreaCm2 <= 500) return 2.5;
-  if (panelAreaCm2 <= 2500) return 4.0;
-  return 6.0;
+function hasReadableText(observation: ObservedInput): boolean {
+  return (
+    observation.value !== null &&
+    observation.value.trim().length > 0 &&
+    !observation.needsReview
+  );
 }
 
 /**
- * Font-size analysis for a panel area. The estimated height is simulated
- * deterministically-ish around the requirement (±15%) so mock reports vary
- * without needing real OCR geometry.
+ * Present-declaration message per check. A `Record` keyed by `ruleId`
+ * (not a ternary chain) so adding a check is adding an entry. Only the
+ * manufacturer entry reads context: the importer limb applies when the
+ * reviewer confirmed `importStatus: "imported"`.
  */
-export function computeFontAnalysis(panelAreaCm2: number): FontAnalysis {
-  const area: number = Math.max(1, panelAreaCm2);
-  const minRequiredMm: number = minLetterHeightMm(area);
+const PRESENT_MESSAGES: Record<ObservedField, (ctx: ReviewContext) => string> = {
+  manufacturer: (ctx) =>
+    ctx.importStatus === 'imported'
+      ? 'Manufacturer/packer/importer name and address observed (importer limb checked: import status is confirmed imported).'
+      : 'Manufacturer/packer name and address observed.',
+  net_quantity: () =>
+    'Net quantity declaration text observed. The photograph verifies the declared text only, not the actual contents.',
+  mrp: () => 'Maximum retail price declaration observed.',
+  manufacture_date: () =>
+    'Month and year of manufacture observed where the reviewed rule requires it. No packing/import date was checked.',
+  consumer_care: () =>
+    'Consumer care contact observed (presence check; any subfield doubt stays with the reviewer).',
+};
 
-  // Deterministic pseudo-random factor in [0.85, 1.15] derived from the area.
-  const jitter: number = 0.85 + ((((area * 7919) | 0) % 100) / 100) * 0.3;
-  const estimatedMm: number = Math.round(minRequiredMm * jitter * 100) / 100;
+/* ------------------------------------------------------------------ */
+/* evaluateRules                                                       */
+/* ------------------------------------------------------------------ */
 
-  const status: CheckStatus = estimatedMm >= minRequiredMm ? 'pass' : 'fail';
-  const margin: number = (estimatedMm - minRequiredMm) / minRequiredMm;
-  const readabilityScore: number = Math.max(
-    0,
-    Math.min(100, Math.round(70 + margin * 100)),
-  );
-
-  const contrastNote: string =
-    status === 'pass'
-      ? `Letter height ${estimatedMm} mm ≥ required ${minRequiredMm} mm; adequate free space around net quantity, good contrast.`
-      : `Letter height ${estimatedMm} mm < required ${minRequiredMm} mm for a ${area} cm² panel; increase type size and keep free space around net quantity.`;
-
+function notAssessed(
+  entry: RuleCatalogEntry,
+  message: string,
+  evidence: RuleResult['evidence'],
+): RuleResult {
   return {
-    panelAreaCm2: area,
-    minRequiredMm,
-    estimatedMm,
-    status,
-    readabilityScore,
-    contrastNote,
+    ruleId: entry.ruleId,
+    label: entry.label,
+    legalCitation: entry.legalCitation,
+    gazetteNumber: entry.gazetteNumber,
+    effectiveFrom: entry.effectiveFrom,
+    sourceUrl: entry.sourceUrl,
+    appliesWhen: entry.appliesWhen,
+    result: 'not_assessed',
+    evidence,
+    message,
+    needsReview: true,
   };
 }
 
+function evaluateOne(
+  entry: RuleCatalogEntry,
+  observations: ObservedInput[],
+  ctx: ReviewContext,
+): RuleResult {
+  if (ctx.photoCount <= 0) {
+    return notAssessed(entry, 'Not assessed: no photographs were submitted, so nothing could be checked.', null);
+  }
+
+  if (isChapterIIExempt(ctx.category)) {
+    return notAssessed(
+      entry,
+      `Not assessed: category "${ctx.category}" signals a Chapter II / Rule 26 exclusion (bulk, industrial/institutional, loose, or separately-regulated pack). Exclusions are never reported as violations.`,
+      null,
+    );
+  }
+
+  if (entry.ruleId === 'manufacture_date' && isDateRuleUnclear(ctx.category)) {
+    return notAssessed(
+      entry,
+      `Not assessed: the month-year rule is unclear for category "${ctx.category || 'unknown'}" (special provisions may apply, or the category is undecided). No universal packing/import-date check was applied.`,
+      null,
+    );
+  }
+
+  const observation = findObservation(observations, entry.ruleId);
+
+  if (observation === null) {
+    return notAssessed(
+      entry,
+      'Not assessed: no assessable evidence for this declaration in the submitted observations.',
+      null,
+    );
+  }
+
+  const observedEvidence: RuleResult['evidence'] =
+    observation.value !== null && observation.value.trim().length > 0
+      ? {
+          value: observation.value,
+          ...(observation.photoId !== undefined ? { photoId: observation.photoId } : {}),
+        }
+      : null;
+
+  if (observation.needsReview) {
+    const reason =
+      entry.ruleId === 'consumer_care'
+        ? 'Not assessed: consumer care contact is partially observed or uncertain — a missing subfield is left for the reviewer, never an automatic violation.'
+        : 'Not assessed: poor evidence — the observation needs review (uncertain reading or unreadable view).';
+    return notAssessed(entry, reason, observedEvidence);
+  }
+
+  if (!ctx.coverageConfirmed) {
+    return notAssessed(
+      entry,
+      'Not assessed: the reviewer has not confirmed that the relevant package sides were photographed, so an unseen declaration cannot be called missing.',
+      observedEvidence,
+    );
+  }
+
+  if (hasReadableText(observation)) {
+    const text = (observation.value as string).trim();
+    const evidence: RuleResult['evidence'] = {
+      value: text,
+      ...(observation.photoId !== undefined ? { photoId: observation.photoId } : {}),
+    };
+    if (entry.ruleId === 'manufacturer' && ctx.importStatus === 'unknown') {
+      return notAssessed(
+        entry,
+        'Not assessed: name and address text observed, but import status is unconfirmed ("unknown") — ' +
+          'the importer limb may apply, so neither the domestic nor the imported limb is fully established. Left for the reviewer.',
+        evidence,
+      );
+    }
+    return {
+      ruleId: entry.ruleId,
+      label: entry.label,
+      legalCitation: entry.legalCitation,
+      gazetteNumber: entry.gazetteNumber,
+      effectiveFrom: entry.effectiveFrom,
+      sourceUrl: entry.sourceUrl,
+      appliesWhen: entry.appliesWhen,
+      result: 'no_issue_found',
+      evidence,
+      message: PRESENT_MESSAGES[entry.ruleId](ctx),
+      needsReview: false,
+    };
+  }
+
+  return {
+    ruleId: entry.ruleId,
+    label: entry.label,
+    legalCitation: entry.legalCitation,
+    gazetteNumber: entry.gazetteNumber,
+    effectiveFrom: entry.effectiveFrom,
+    sourceUrl: entry.sourceUrl,
+    appliesWhen: entry.appliesWhen,
+    result: 'suspected_violation',
+    evidence: null,
+    message: `Suspected violation: ${entry.expectedDeclaration} not found in the confirmed readable views. Awaiting reviewer decision.`,
+    needsReview: true,
+  };
+}
+
+/**
+ * Evaluate the cited catalog against structured observations and reviewer
+ * context. Missing declarations become `suspected_violation` ONLY when the
+ * rule applies, the relevant view is readable, and coverage is confirmed;
+ * unsupported, inapplicable, poor-evidence and unconfirmed-coverage cases
+ * are `not_assessed`.
+ */
+export function evaluateRules(
+  observations: ObservedInput[],
+  ctx: ReviewContext,
+): RuleResult[] {
+  const safeObservations = Array.isArray(observations) ? observations : [];
+  return RULE_CATALOG.map((entry) => evaluateOne(entry, safeObservations, ctx));
+}
+
 /* ------------------------------------------------------------------ */
-/* buildReport                                                         */
+/* computeHeadline                                                     */
 /* ------------------------------------------------------------------ */
 
 /**
- * Assemble a `ProductReport` from OCR text.
- * Score = (pass + 0.5 × warning) / total × 100.
+ * The ONLY overall wording. Any suspected violation wins; all-not-assessed
+ * (or no results at all) is insufficient evidence; otherwise no issue was
+ * found in the checks that could actually be assessed.
+ */
+export function computeHeadline(results: RuleResult[]): ReportHeadline {
+  const list = Array.isArray(results) ? results : [];
+  if (list.some((result) => result.result === 'suspected_violation')) {
+    return 'suspected violation';
+  }
+  if (list.length === 0 || list.every((result) => result.result === 'not_assessed')) {
+    return 'insufficient evidence';
+  }
+  return 'no issue found in assessed checks';
+}
+
+/* ------------------------------------------------------------------ */
+/* Internal numeric score (internal testing ONLY)                       */
+/* ------------------------------------------------------------------ */
+
+/**
+ * INTERNAL TESTING ONLY. Share of assessable (non-not_assessed) checks with
+ * no issue found, 0-100; 0 when nothing was assessable. This number MUST
+ * NEVER decide the headline or any legal wording — `computeHeadline` does
+ * not read it. Exported so benchmark tooling (issue #11) can track internal
+ * signal without leaking it into reports.
+ */
+export function computeInternalScore(results: RuleResult[]): number {
+  const list = Array.isArray(results) ? results : [];
+  const assessable = list.filter((result) => result.result !== 'not_assessed');
+  if (assessable.length === 0) return 0;
+  const clean = assessable.filter((result) => result.result === 'no_issue_found').length;
+  return Math.round((clean / assessable.length) * 100);
+}
+
+/* ------------------------------------------------------------------ */
+/* Deprecated pre-#6 compatibility adapters (do not extend)             */
+/* ------------------------------------------------------------------ */
+/**
+ * The shims below exist ONLY so pages owned by other agents
+ * (scan/report/repository/dashboard, mock-data) keep compiling until they
+ * migrate to `evaluateRules`/`computeHeadline`. They contain NONE of the old
+ * wrong logic (no 10-check regex engine, no wrong citations, no weighted
+ * score, no font simulation): every shim delegates to the honest engine.
+ * Raw OCR text without reviewer-confirmed coverage can never establish
+ * compliance, so these adapters always yield not_assessed-backed legacy
+ * "warning" checks until migrated callers supply real observations.
+ */
+
+function catalogEntry(ruleId: ObservedField): RuleCatalogEntry {
+  const entry = RULE_CATALOG.find((candidate) => candidate.ruleId === ruleId);
+  if (!entry) {
+    throw new Error(`Unknown ruleId "${ruleId}": no entry in RULE_CATALOG.`);
+  }
+  return entry;
+}
+
+function toLegacyCheck(result: RuleResult): ComplianceCheck {
+  const status: CheckStatus =
+    result.result === 'no_issue_found'
+      ? 'pass'
+      : result.result === 'suspected_violation'
+        ? 'fail'
+        : 'warning';
+  const check: ComplianceCheck = {
+    id: result.ruleId,
+    label: result.label,
+    ruleRef: result.legalCitation,
+    status,
+    message: result.message,
+  };
+  if (result.evidence !== null) check.extractedText = result.evidence.value;
+  check.expected = catalogEntry(result.ruleId).expectedDeclaration;
+  return check;
+}
+
+/**
+ * @deprecated Stub kept only for pre-migration callers. Extraction patterns
+ * are owned by the observations agent (issue #5). Always returns `{}` and
+ * never fabricates field text from raw OCR.
+ */
+export function extractFields(_ocrText: string): Record<string, string> {
+  return {};
+}
+
+/**
+ * @deprecated Compatibility adapter over `evaluateRules`. Raw text carries
+ * no photo references and no reviewer coverage confirmation, so every check
+ * is honestly `not_assessed` (legacy "warning") until callers migrate to
+ * structured observations. `_panelAreaCm2` is ignored: font/size belongs to
+ * the readability agent (issue #8).
+ */
+export function runComplianceChecks(ocrText: string, _panelAreaCm2?: number): ComplianceCheck[] {
+  const text: string = ocrText ?? '';
+  void _panelAreaCm2;
+  const ctx: ReviewContext = {
+    category: 'unknown',
+    importStatus: 'unknown',
+    coverageConfirmed: false,
+    photoCount: text.trim().length > 0 ? 1 : 0,
+  };
+  return evaluateRules([], ctx).map(toLegacyCheck);
+}
+
+/**
+ * @deprecated Table-I lookup removed with the old font simulation. Font
+ * measurement is owned by the readability agent (issue #8). Always returns
+ * NaN — callers must treat letter height as not assessed without a
+ * known-size reference.
+ */
+export function minLetterHeightMm(_panelAreaCm2: number): number {
+  return NaN;
+}
+
+/**
+ * @deprecated Simulation removed. Always returns an honest not-assessed
+ * placeholder: no millimetre estimate is invented from pixels.
+ */
+export function computeFontAnalysis(panelAreaCm2: number): FontAnalysis {
+  const area: number =
+    Number.isFinite(panelAreaCm2) && panelAreaCm2 > 0 ? panelAreaCm2 : 0;
+  return {
+    panelAreaCm2: area,
+    minRequiredMm: NaN,
+    estimatedMm: NaN,
+    status: 'warning',
+    readabilityScore: 0,
+    contrastNote:
+      'Not assessed: letter height needs a known-size reference in the photograph (readability agent, issue #8). Pixel estimates are never reported as millimetres.',
+  };
+}
+
+/**
+ * @deprecated Compatibility adapter that assembles a legacy `ProductReport`
+ * via the honest engine. `score` is the internal-testing number only and
+ * `overallStatus` can never be COMPLIANT here: raw OCR text without
+ * reviewer-confirmed coverage cannot establish compliance.
  */
 export function buildReport(
   id: string,
@@ -443,29 +528,20 @@ export function buildReport(
   category: string,
   imageUrl: string,
   ocrText: string,
-  panelArea?: number,
+  _panelArea?: number,
 ): ProductReport {
-  const checks: ComplianceCheck[] = runComplianceChecks(ocrText, panelArea);
-  const total: number = checks.length;
-
-  let earned = 0;
-  for (const c of checks) {
-    if (c.status === 'pass') earned += 1;
-    else if (c.status === 'warning') earned += 0.5;
-  }
-  const score: number = total === 0 ? 0 : Math.round((earned / total) * 100);
-
-  const fails: number = checks.filter((c: ComplianceCheck) => c.status === 'fail').length;
-  const warns: number = checks.filter((c: ComplianceCheck) => c.status === 'warning').length;
-
-  let overallStatus: OverallStatus;
-  if (fails === 0 && warns === 0) overallStatus = 'COMPLIANT';
-  else if (fails === 0) overallStatus = 'NEEDS_REVIEW';
-  else if (fails <= 2 && score >= 60) overallStatus = 'NEEDS_REVIEW';
-  else overallStatus = 'NON_COMPLIANT';
-
-  const font: FontAnalysis = computeFontAnalysis(panelArea ?? 120);
-
+  const text: string = ocrText ?? '';
+  void _panelArea;
+  const ctx: ReviewContext = {
+    category: category ?? 'unknown',
+    importStatus: 'unknown',
+    coverageConfirmed: false,
+    photoCount: text.trim().length > 0 || (imageUrl ?? '').trim().length > 0 ? 1 : 0,
+  };
+  const results: RuleResult[] = evaluateRules([], ctx);
+  const headline: ReportHeadline = computeHeadline(results);
+  const overallStatus: OverallStatus =
+    headline === 'suspected violation' ? 'NON_COMPLIANT' : 'NEEDS_REVIEW';
   return {
     id,
     productName,
@@ -474,9 +550,9 @@ export function buildReport(
     imageUrl,
     scannedAt: new Date().toISOString(),
     overallStatus,
-    score,
-    checks,
-    font,
-    rawOcrText: ocrText,
+    score: computeInternalScore(results),
+    checks: results.map(toLegacyCheck),
+    font: computeFontAnalysis(0),
+    rawOcrText: text,
   };
 }

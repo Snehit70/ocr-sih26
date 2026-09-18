@@ -1,0 +1,47 @@
+{
+  "packageId": "synthetic-doc-001",
+  "photosDir": "photos/synthetic-doc-001",
+  "category": "household",
+  "expectedDeclarations": [
+    {
+      "field": "manufacturer",
+      "text": "Acme Home Goods Pvt Ltd, 12 Market Road, Mumbai 400001",
+      "photoId": "p-front"
+    },
+    {
+      "field": "net_quantity",
+      "text": "500 g",
+      "photoId": "p-front"
+    },
+    {
+      "field": "mrp",
+      "text": "Rs 199 inclusive of all taxes",
+      "photoId": "p-back"
+    },
+    {
+      "field": "manufacture_date",
+      "text": "01/2025",
+      "photoId": "p-back"
+    },
+    {
+      "field": "consumer_care",
+      "text": "care@acme.example, 1800-123-456",
+      "photoId": "p-back"
+    }
+  ],
+  "applicableChecks": [
+    "manufacturer",
+    "net_quantity",
+    "mrp",
+    "manufacture_date",
+    "consumer_care"
+  ],
+  "expectedFindings": [
+    { "ruleId": "manufacturer", "result": "no_issue_found" },
+    { "ruleId": "net_quantity", "result": "no_issue_found" },
+    { "ruleId": "mrp", "result": "no_issue_found" },
+    { "ruleId": "manufacture_date", "result": "no_issue_found" },
+    { "ruleId": "consumer_care", "result": "no_issue_found" }
+  ],
+  "notes": "Synthetic documentation example only — real package photographs are team-supplied (see README in this directory)."
+}

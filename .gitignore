@@ -36,6 +36,15 @@ yarn-error.log*
 # vercel
 .vercel
 
+# local agent fixtures served to the scan tab
+/public/tmp-fixtures/
+
+# local Grok/agent harness (not part of the app)
+/.grok/
+
+# benchmark team-supplied photos (large binaries, supplied per machine)
+benchmark/cases/photos/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
