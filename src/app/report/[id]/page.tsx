@@ -29,6 +29,7 @@ import { FIELD_MAP } from "@/lib/observations";
 import { loadReview, saveReview, type ReviewPayload } from "@/lib/review-store";
 import {
   createPhotoObjectUrl,
+  describeStoreError,
   getInspection,
   listLegacyReports,
   saveInspection,
@@ -36,10 +37,11 @@ import {
   type LegacyReportRef,
 } from "@/lib/store";
 import type { ImportStatus, ObservedField } from "@/lib/types";
+import { Notice, type NoticeCopy } from "@/components/Notice";
 
 type Phase =
   | { kind: "loading" }
-  | { kind: "error"; message: string }
+  | { kind: "error"; notice: NoticeCopy }
   | { kind: "not-found" }
   | { kind: "legacy"; entry: LegacyReportRef }
   | { kind: "ready" };
@@ -200,7 +202,7 @@ export default function ReportPage() {
     Pick<ReviewPayload, "photoFaces" | "samePackage" | "mismatchNote">
   >({ photoFaces: [], samePackage: null, mismatchNote: null });
   const [photoUrls, setPhotoUrls] = useState<Record<string, string>>({});
-  const [confirmError, setConfirmError] = useState<string | null>(null);
+  const [confirmError, setConfirmError] = useState<NoticeCopy | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [exportingDocx, setExportingDocx] = useState(false);
 
@@ -242,10 +244,7 @@ export default function ReportPage() {
         if (cancelled) return;
         setPhase({
           kind: "error",
-          message:
-            error instanceof Error
-              ? error.message
-              : "Browser storage is unavailable, so this inspection cannot be opened.",
+          notice: describeStoreError(error),
         });
       }
     }
@@ -348,9 +347,10 @@ export default function ReportPage() {
           `Accept or reject each suspected violation (${undecided} undecided).`,
         );
       }
-      setConfirmError(
-        `Cannot confirm yet: ${reasons.join(" ")} Nothing was marked final.`,
-      );
+      setConfirmError({
+        title: "Cannot confirm yet",
+        detail: `${reasons.join(" ")} Nothing was marked final.`,
+      });
       return;
     }
     setConfirming(true);
@@ -362,11 +362,10 @@ export default function ReportPage() {
       setInspection(saved);
       setOverlay(nextOverlay);
     } catch (error) {
-      setConfirmError(
-        error instanceof Error
-          ? `Could not confirm: ${error.message}`
-          : "Could not confirm this report. Nothing was marked final.",
-      );
+      setConfirmError({
+        title: "Confirmation was not saved",
+        detail: describeStoreError(error).detail,
+      });
     } finally {
       setConfirming(false);
     }
@@ -415,9 +414,11 @@ export default function ReportPage() {
 
   if (phase.kind === "error") {
     return (
-      <div className="mx-auto max-w-2xl px-4 py-16 text-center sm:px-6">
+      <div className="mx-auto max-w-2xl px-4 py-16 sm:px-6">
         <h1 className="text-xl font-bold text-slate-900">Report cannot be opened</h1>
-        <p className="mt-2 text-sm text-slate-600">{phase.message}</p>
+        <div className="mt-4">
+          <Notice {...phase.notice} />
+        </div>
         <div className="mt-6">
           <Link
             href="/scan"
@@ -736,11 +737,11 @@ export default function ReportPage() {
             </>
           )}
         </div>
-        {confirmError && (
-          <p role="alert" className="mt-2 text-sm text-red-700">
-            {confirmError}
-          </p>
-        )}
+        {confirmError ? (
+          <div className="mt-3">
+            <Notice {...confirmError} />
+          </div>
+        ) : null}
       </div>
 
       {/* Main grid */}

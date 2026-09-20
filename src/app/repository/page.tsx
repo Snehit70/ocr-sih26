@@ -5,9 +5,12 @@ import Link from "next/link";
 import { ArrowRight, Download, Loader2, PackageSearch, ScanLine, Search } from "lucide-react";
 import {
   isStorageAvailable,
+  deleteEmptyDrafts,
+  describeStoreError,
   listInspections,
   listLegacyReports,
 } from "@/lib/store";
+import { Notice, type NoticeCopy } from "@/components/Notice";
 import {
   headlineFromLegacyStatus,
   headlineFromResults,
@@ -162,7 +165,7 @@ export default function RepositoryPage() {
   const [realHeadlines, setRealHeadlines] = useState<Record<string, RealHeadline>>({});
   const [coverUrls, setCoverUrls] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<NoticeCopy | null>(null);
   const [query, setQuery] = useState("");
   const [headline, setHeadline] = useState<HeadlineFilter>("All");
   const [category, setCategory] = useState<string>("All");
@@ -177,13 +180,17 @@ export default function RepositoryPage() {
             setInspections([]);
             setRealHeadlines({});
             setLegacy(listLegacyReports());
-            setLoadError(
-              "Browser storage (IndexedDB) is unavailable, so saved inspections cannot be listed on this device.",
-            );
+            setLoadError({
+              title: "Browser storage is unavailable",
+              detail: "Saved inspections cannot be listed in this browser.",
+            });
           }
           return;
         }
-        const records = await listInspections();
+        await deleteEmptyDrafts();
+        const records = (await listInspections()).filter(
+          (record) => record.photos.length > 0,
+        );
         // Real per-record headlines from reviewer state (sync localStorage
         // reads resolved here so the loading state below covers them).
         const headlines: Record<string, RealHeadline> = {};
@@ -210,9 +217,7 @@ export default function RepositoryPage() {
           } catch {
             setLegacy([]);
           }
-          setLoadError(
-            err instanceof Error ? err.message : "Could not list saved inspections.",
-          );
+          setLoadError(describeStoreError(err));
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -356,11 +361,7 @@ export default function RepositoryPage() {
         </button>
       </div>
 
-      {loadError && !loading ? (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700" role="alert">
-          {loadError}
-        </div>
-      ) : null}
+      {loadError && !loading ? <Notice {...loadError} /> : null}
 
       <div className="grid grid-cols-1 gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-4">
         <div className="relative">
@@ -423,8 +424,8 @@ export default function RepositoryPage() {
           <PackageSearch className="h-10 w-10 text-gray-300" />
           <p className="font-medium text-gray-700">No inspections yet</p>
           <p className="max-w-md text-sm text-gray-500">
-            Nothing has been scanned on this laptop. Photograph a package to create the first
-            real inspection — no sample products are shown here.
+            Photograph a package to create the first inspection. Empty visits
+            to the inspect page are not saved.
           </p>
           <Link
             href="/scan"

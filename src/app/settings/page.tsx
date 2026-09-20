@@ -2,32 +2,36 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { CheckCircle2, FlaskConical, ImagePlus, Loader2, PlugZap, RotateCcw, Send, Trash2, X, XCircle } from "lucide-react";
+import { FlaskConical, ImagePlus, Loader2, PlugZap, RotateCcw, Send, Trash2, X } from "lucide-react";
 import {
   DEFAULT_BASE_URL,
   DEFAULT_MODEL_ID,
-  ModelClientError,
-  chatVisionText,  clearApiKey,
+  chatVisionText,
+  clearApiKey,
   getModelConfig,
   hasApiKey,
   resetModelConfig,
   setApiKey,
   setModelConfig,
   testConnection,
+  describeModelError,
 } from "@/lib/model-client";
 import { photoBlobToJpegDataUrl } from "@/lib/image";
+import SessionLog from "@/components/SessionLog";
+import { Notice } from "@/components/Notice";
+import { errorDetail, log } from "@/lib/log";
 
 type TestState =
   | { kind: "idle" }
   | { kind: "testing" }
-  | { kind: "success"; message: string }
-  | { kind: "error"; message: string };
+  | { kind: "success"; title: string; detail?: string }
+  | { kind: "error"; title: string; detail?: string };
 
 type BenchState =
   | { kind: "idle" }
   | { kind: "sending" }
   | { kind: "done"; text: string; elapsedMs: number; model?: string }
-  | { kind: "error"; message: string };
+  | { kind: "error"; title: string; detail?: string };
 
 const BENCH_DEFAULT_PROMPT = "Transcribe all text visible in this image. Reply with the transcription only.";
 
@@ -59,12 +63,16 @@ export default function SettingsPage() {
     });
     setBaseUrl(next.baseUrl);
     setModel(next.model);
+    const heldKey = Boolean(keyInput.trim()) || keyInMemory;
     // Key update (when the field is touched) stays in session memory only.
     if (keyInput.trim()) {
       setApiKey(keyInput);
       setKeyInput("");
       setKeyInMemory(true);
     }
+    log.info("settings", "saved", "Model endpoint saved", {
+      data: { baseUrl: next.baseUrl, model: next.model, keyHeld: heldKey },
+    });
     setNotice("Settings saved. Base URL and model persist locally; the API key stays in session memory only.");
     setTestState({ kind: "idle" });
   }
@@ -87,7 +95,11 @@ export default function SettingsPage() {
   async function handleBenchFile(file: File | null) {
     if (!file) return;
     if (!file.type.startsWith("image/")) {
-      setBenchState({ kind: "error", message: "That file is not an image — pick a photo of a package label." });
+      setBenchState({
+        kind: "error",
+        title: "That file is not an image",
+        detail: "Pick a photograph of a package label.",
+      });
       return;
     }
     setBenchState({ kind: "idle" });
@@ -98,9 +110,14 @@ export default function SettingsPage() {
     } catch (err) {
       setBenchPreview(null);
       setBenchName(null);
+      const detail = errorDetail(err);
+      log.error("settings", "bench_image_failed", "Could not open the test image", {
+        data: { name: file.name, type: file.type, cause: detail.message },
+      });
       setBenchState({
         kind: "error",
-        message: err instanceof Error ? err.message : "Could not read that image file.",
+        title: "That photograph could not be opened",
+        detail: "Try a JPEG or PNG.",
       });
     }
   }
@@ -115,7 +132,11 @@ export default function SettingsPage() {
   async function handleBenchSend() {
     if (benchState.kind === "sending") return;
     if (!benchPreview) {
-      setBenchState({ kind: "error", message: "Upload a test image first." });
+      setBenchState({
+        kind: "error",
+        title: "Add a photograph first",
+        detail: "Upload a package photo, then send it to the model.",
+      });
       return;
     }
     setBenchState({ kind: "sending" });
@@ -125,13 +146,12 @@ export default function SettingsPage() {
       });
       setBenchState({ kind: "done", text: result.text, elapsedMs: result.elapsedMs, model: result.model });
     } catch (err) {
-      const message =
-        err instanceof ModelClientError
-          ? `[${err.code}] ${err.message}`
-          : err instanceof Error
-            ? err.message
-            : "Test request failed unexpectedly.";
-      setBenchState({ kind: "error", message });
+      const copy = describeModelError(err);
+      setBenchState({
+        kind: "error",
+        title: copy.title,
+        detail: copy.detail,
+      });
     }
   }
 
@@ -143,27 +163,29 @@ export default function SettingsPage() {
       if (result.configuredModelFound === false) {
         setTestState({
           kind: "success",
-          message: `Connected to ${result.baseUrl}. Server lists ${result.models.length} model(s), but "${model.trim()}" is not among them — load it in LM Studio.`,
+          title: "Connected, but that model is missing",
+          detail: `Load "${model.trim()}" in LM Studio, then try again.`,
         });
       } else if (result.models.length > 0) {
         setTestState({
           kind: "success",
-          message: `Connected to ${result.baseUrl}. Found ${result.models.length} model(s): ${result.models.slice(0, 5).join(", ")}${result.models.length > 5 ? "…" : ""}`,
+          title: "Connected",
+          detail: `Found ${result.models.length} model${result.models.length === 1 ? "" : "s"}: ${result.models.slice(0, 5).join(", ")}${result.models.length > 5 ? "…" : ""}`,
         });
       } else {
         setTestState({
           kind: "success",
-          message: `Connected to ${result.baseUrl}. The server answered but listed no models.`,
+          title: "Connected",
+          detail: "The server answered but listed no models.",
         });
       }
     } catch (err) {
-      const message =
-        err instanceof ModelClientError
-          ? `[${err.code}] ${err.message}`
-          : err instanceof Error
-            ? err.message
-            : "Connection test failed unexpectedly.";
-      setTestState({ kind: "error", message });
+      const copy = describeModelError(err);
+      setTestState({
+        kind: "error",
+        title: copy.title,
+        detail: copy.detail,
+      });
     }
   }
 
@@ -230,9 +252,9 @@ export default function SettingsPage() {
           </p>
 
           {notice ? (
-            <p className="mt-3 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">
-              {notice}
-            </p>
+            <div className="mt-3">
+              <Notice tone="info" title={notice} />
+            </div>
           ) : null}
 
           <div className="mt-4 flex flex-wrap gap-2">
@@ -275,16 +297,18 @@ export default function SettingsPage() {
           </div>
 
           {testState.kind === "success" ? (
-            <p className="mt-3 flex items-start gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">
-              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-              <span>{testState.message}</span>
-            </p>
+            <div className="mt-3">
+              <Notice
+                tone="success"
+                title={testState.title}
+                detail={testState.detail}
+              />
+            </div>
           ) : null}
           {testState.kind === "error" ? (
-            <p className="mt-3 flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-              <XCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-              <span>{testState.message}</span>
-            </p>
+            <div className="mt-3">
+              <Notice title={testState.title} detail={testState.detail} />
+            </div>
           ) : null}
         </section>
 
@@ -388,12 +412,13 @@ export default function SettingsPage() {
             </div>
           ) : null}
           {benchState.kind === "error" ? (
-            <p className="mt-3 flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-              <XCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-              <span>{benchState.message}</span>
-            </p>
+            <div className="mt-3">
+              <Notice title={benchState.title} detail={benchState.detail} />
+            </div>
           ) : null}
         </section>
+
+        <SessionLog />
 
         <p className="text-xs text-slate-500">
           Defaults: {DEFAULT_BASE_URL} · {DEFAULT_MODEL_ID}.{" "}
