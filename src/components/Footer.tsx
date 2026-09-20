@@ -3,7 +3,7 @@ import { Mail, MapPin, Phone, Scale } from "lucide-react";
 
 const QUICK_LINKS: { label: string; href: string }[] = [
   { label: "Home", href: "/" },
-  { label: "Scan a Pack", href: "/scan" },
+  { label: "Start an inspection", href: "/scan" },
   { label: "Dashboard", href: "/dashboard" },
   { label: "Repository", href: "/repository" },
 ];
