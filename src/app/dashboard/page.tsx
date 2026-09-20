@@ -397,7 +397,7 @@ export default function DashboardPage() {
   return (
     <div className="mx-auto max-w-6xl space-y-5 px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+        <h1 className="text-2xl font-extrabold tracking-[-0.03em] text-slate-950 sm:text-3xl">
           Dashboard
         </h1>
         <p className="mt-1 text-sm text-slate-600">
@@ -471,9 +471,9 @@ export default function DashboardPage() {
                         {row.value}
                       </span>
                     </div>
-                    <div className="mt-1 h-2 overflow-hidden rounded-full bg-slate-100">
+                    <div className="mt-1 h-2 overflow-hidden rounded-md bg-slate-100">
                       <div
-                        className={`h-2 rounded-full ${row.bar}`}
+                        className={`h-2 rounded-md ${row.bar}`}
                         style={{ width: `${pct}%` }}
                       />
                     </div>
@@ -557,7 +557,7 @@ export default function DashboardPage() {
             </p>
             <Link
               href="/scan"
-              className="mt-4 inline-flex min-h-11 items-center gap-1.5 rounded-lg bg-blue-700 px-4 text-sm font-semibold text-white hover:bg-blue-800"
+              className="mt-4 inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-[#1D4ED8] px-4 text-sm font-semibold text-white hover:bg-[#1E40AF]"
             >
               <ScanLine className="h-4 w-4" aria-hidden="true" />
               Start an inspection
@@ -581,7 +581,7 @@ export default function DashboardPage() {
                         {entry.title}
                       </span>
                       <span
-                        className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${headlineBadge(entry.headline)}`}
+                        className={`shrink-0 rounded-md px-2 py-0.5 text-xs font-semibold ${headlineBadge(entry.headline)}`}
                       >
                         {headlineLabel(entry.headline)}
                       </span>
@@ -626,7 +626,7 @@ export default function DashboardPage() {
                           {entry.title}
                         </Link>
                         {isDraftEntry(entry) ? (
-                          <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700 ring-1 ring-inset ring-slate-300">
+                          <span className="ml-2 rounded-md bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700 ring-1 ring-inset ring-slate-300">
                             Draft
                           </span>
                         ) : null}
@@ -644,7 +644,7 @@ export default function DashboardPage() {
                       </td>
                       <td className="py-2.5">
                         <span
-                          className={`rounded-full px-2 py-0.5 text-xs font-semibold ${headlineBadge(entry.headline)}`}
+                          className={`rounded-md px-2 py-0.5 text-xs font-semibold ${headlineBadge(entry.headline)}`}
                         >
                           {headlineLabel(entry.headline)}
                         </span>

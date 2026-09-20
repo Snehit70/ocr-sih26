@@ -191,7 +191,7 @@ export default function SettingsPage() {
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-8">
-      <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+      <h1 className="text-2xl font-extrabold tracking-[-0.03em] text-slate-950 sm:text-3xl">
         Model Settings
       </h1>
       <p className="mt-1 text-sm text-slate-600">
@@ -217,7 +217,7 @@ export default function SettingsPage() {
             placeholder={DEFAULT_BASE_URL}
             spellCheck={false}
             autoComplete="off"
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 font-mono text-sm text-slate-800 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-sm text-slate-800 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           />
 
           <label htmlFor="model-id" className="mt-4 block text-xs font-medium text-slate-700">
@@ -231,7 +231,7 @@ export default function SettingsPage() {
             placeholder={DEFAULT_MODEL_ID}
             spellCheck={false}
             autoComplete="off"
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 font-mono text-sm text-slate-800 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-sm text-slate-800 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           />
 
           <label htmlFor="model-key" className="mt-4 block text-xs font-medium text-slate-700">
@@ -244,7 +244,7 @@ export default function SettingsPage() {
             onChange={(e) => setKeyInput(e.target.value)}
             placeholder={keyInMemory ? "Key held in memory (enter a new one to replace)" : "Not needed for local LM Studio"}
             autoComplete="off"
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 font-mono text-sm text-slate-800 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-sm text-slate-800 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           />
           <p className="mt-1.5 text-xs text-slate-500">
             Status: {keyInMemory ? "a key is held in session memory." : "no key in memory."} The
@@ -261,7 +261,7 @@ export default function SettingsPage() {
             <button
               type="button"
               onClick={handleSave}
-              className="rounded-md bg-blue-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-800"
+              className="inline-flex min-h-11 items-center rounded-xl bg-[#1D4ED8] px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#1E40AF]"
             >
               Save settings
             </button>
@@ -269,7 +269,7 @@ export default function SettingsPage() {
               type="button"
               onClick={handleTest}
               disabled={testState.kind === "testing"}
-              className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-slate-300 px-4 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {testState.kind === "testing" ? (
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -281,7 +281,7 @@ export default function SettingsPage() {
             <button
               type="button"
               onClick={handleClearKey}
-              className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
             >
               <Trash2 className="h-4 w-4" aria-hidden="true" />
               Clear key
@@ -289,7 +289,7 @@ export default function SettingsPage() {
             <button
               type="button"
               onClick={handleReset}
-              className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
             >
               <RotateCcw className="h-4 w-4" aria-hidden="true" />
               Reset defaults
@@ -345,7 +345,7 @@ export default function SettingsPage() {
                 <button
                   type="button"
                   onClick={handleBenchClear}
-                  className="mt-1.5 inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100"
+                  className="mt-1.5 inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100"
                 >
                   <X className="h-3.5 w-3.5" aria-hidden="true" /> Remove
                 </button>
@@ -373,7 +373,7 @@ export default function SettingsPage() {
             onChange={(e) => setBenchSystem(e.target.value)}
             placeholder="e.g. You answer only in rhymes."
             autoComplete="off"
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           />
 
           <label htmlFor="bench-prompt" className="mt-3 block text-xs font-medium text-slate-700">
@@ -384,14 +384,14 @@ export default function SettingsPage() {
             value={benchPrompt}
             onChange={(e) => setBenchPrompt(e.target.value)}
             rows={3}
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           />
 
           <button
             type="button"
             onClick={handleBenchSend}
             disabled={benchState.kind === "sending" || !benchPreview}
-            className="mt-3 inline-flex items-center gap-1.5 rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="mt-3 inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {benchState.kind === "sending" ? (
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -402,7 +402,7 @@ export default function SettingsPage() {
           </button>
 
           {benchState.kind === "done" ? (
-            <div className="mt-3 rounded-md border border-green-200 bg-green-50 p-3">
+            <div className="mt-3 rounded-lg border border-green-200 bg-green-50 p-3">
               <p className="text-xs font-medium text-green-800">
                 Reply{benchState.model ? ` from ${benchState.model}` : ""} · {(benchState.elapsedMs / 1000).toFixed(1)}s
               </p>

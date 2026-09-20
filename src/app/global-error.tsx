@@ -28,7 +28,7 @@ export default function GlobalError({
           <button
             type="button"
             onClick={() => retry()}
-            className="mt-6 inline-flex min-h-11 items-center justify-center rounded-lg bg-blue-700 px-4 text-sm font-semibold text-white"
+            className="mt-6 inline-flex min-h-11 items-center justify-center rounded-xl bg-[#1D4ED8] px-4 text-sm font-semibold text-white hover:bg-[#1E40AF]"
           >
             Try again
           </button>

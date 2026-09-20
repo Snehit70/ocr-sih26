@@ -37,7 +37,7 @@ export default function StatCard({
         </div>
         {icon ? (
           <span
-            className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${toneStyles[tone]}`}
+            className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${toneStyles[tone]}`}
           >
             {icon}
           </span>

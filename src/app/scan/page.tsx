@@ -464,7 +464,7 @@ export default function ScanPage() {
       type="button"
       onClick={handleAnalyze}
       disabled={busy || photoCount === 0}
-      className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-blue-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-blue-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+      className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#1D4ED8] px-4 text-sm font-semibold text-white shadow-sm hover:bg-[#1E40AF] disabled:cursor-not-allowed disabled:bg-slate-300"
     >
       {analyzing ? (
         <>
@@ -497,7 +497,7 @@ export default function ScanPage() {
               <ArrowLeft className="h-4 w-4" aria-hidden="true" />
               Back to photos
             </button>
-            <h1 className="mt-3 text-xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+            <h1 className="mt-3 text-2xl font-extrabold tracking-[-0.03em] text-slate-950 sm:text-3xl">
               Review findings
             </h1>
             <p className="mt-1 text-sm text-slate-600">
@@ -527,7 +527,7 @@ export default function ScanPage() {
       ) : (
         <>
           <div className="mb-4 sm:mb-6">
-            <h1 className="text-xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+            <h1 className="text-2xl font-extrabold tracking-[-0.03em] text-slate-950 sm:text-3xl">
               Photograph the package
             </h1>
             <p className="mt-1 text-sm text-slate-600 sm:text-base">

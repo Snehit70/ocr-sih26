@@ -18,8 +18,6 @@ import {
   Type,
   UserRound,
 } from "lucide-react";
-import LandingHeader from "@/components/landing/LandingHeader";
-import LandingFooter from "@/components/landing/LandingFooter";
 import InspectionPreview from "@/components/landing/InspectionPreview";
 
 const STEPS = [
@@ -116,10 +114,7 @@ const RESULTS = [
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-white text-slate-900">
-      <LandingHeader />
-
-      <main>
+    <div className="bg-white text-slate-900">
         <section
           id="product"
           className="scroll-mt-28 border-b border-slate-100"
@@ -132,16 +127,16 @@ export default function Home() {
               <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
                 <Link
                   href="/scan"
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#1D4ED8] px-5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#1E40AF]"
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#1D4ED8] px-5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#1E40AF]"
                 >
                   Start an inspection
                   <ArrowRight className="h-4 w-4" aria-hidden="true" />
                 </Link>
                 <a
                   href="#how-it-works"
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-800 transition-colors hover:bg-slate-50"
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-800 transition-colors hover:bg-slate-50"
                 >
-                  <span className="flex h-5 w-5 items-center justify-center rounded-full border border-slate-300">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-md border border-slate-300">
                     <Play className="h-2.5 w-2.5 fill-slate-800 text-slate-800" aria-hidden="true" />
                   </span>
                   See how it works
@@ -256,7 +251,7 @@ export default function Home() {
                   }`}
                 >
                   <span
-                    className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${result.iconClass}`}
+                    className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${result.iconClass}`}
                   >
                     <result.icon className="h-4 w-4" aria-hidden="true" />
                   </span>
@@ -299,7 +294,7 @@ export default function Home() {
               </p>
               <Link
                 href="/scan"
-                className="mt-7 inline-flex h-11 items-center gap-2 rounded-lg bg-[#1D4ED8] px-5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#1E40AF]"
+                className="mt-7 inline-flex h-11 items-center gap-2 rounded-xl bg-[#1D4ED8] px-5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#1E40AF]"
               >
                 Start an inspection
                 <ArrowRight className="h-4 w-4" aria-hidden="true" />
@@ -310,9 +305,6 @@ export default function Home() {
             </p>
           </div>
         </section>
-      </main>
-
-      <LandingFooter />
     </div>
   );
 }

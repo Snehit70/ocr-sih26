@@ -113,7 +113,7 @@ export default function InspectionPreview() {
               Rule assessment
             </h3>
             <div className="mt-3 flex items-start gap-3">
-              <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500">
+              <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
                 <AlertTriangle className="h-4 w-4" aria-hidden="true" />
               </span>
               <div className="min-w-0">

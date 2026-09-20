@@ -422,7 +422,7 @@ export default function ReportPage() {
         <div className="mt-6">
           <Link
             href="/scan"
-            className="inline-flex items-center justify-center gap-2 rounded-md bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800"
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#1D4ED8] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1E40AF]"
           >
             <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Back to scan
           </Link>
@@ -441,7 +441,7 @@ export default function ReportPage() {
         <div className="mt-6 flex flex-col justify-center gap-2 sm:flex-row">
           <Link
             href="/scan"
-            className="inline-flex items-center justify-center gap-2 rounded-md bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800"
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#1D4ED8] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1E40AF]"
           >
             <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Back to scan
           </Link>
@@ -475,7 +475,7 @@ export default function ReportPage() {
           </Link>
         </div>
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
-          <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600 ring-1 ring-inset ring-slate-300">
+          <span className="inline-flex items-center rounded-md bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600 ring-1 ring-inset ring-slate-300">
             Older saved entry
           </span>
           <h1 className="mt-2 text-xl font-bold text-slate-900">{entry.productName}</h1>
@@ -584,7 +584,7 @@ export default function ReportPage() {
       {/* Identity */}
       <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="inline-flex items-center rounded-full bg-slate-800 px-3 py-1 text-xs font-bold text-white">
+          <span className="inline-flex items-center rounded-md bg-slate-800 px-3 py-1 text-xs font-bold text-white">
             {model.headline}
           </span>
           <span className="text-xs text-slate-500">Inspection aid — not legal certification</span>
@@ -686,7 +686,7 @@ export default function ReportPage() {
           <button
             type="button"
             onClick={downloadPdf}
-            className="inline-flex items-center justify-center gap-2 rounded-md bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800"
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#1D4ED8] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1E40AF]"
           >
             <Download className="h-4 w-4" aria-hidden="true" /> Download PDF{isDraft ? " (DRAFT)" : ""}
           </button>
@@ -763,12 +763,12 @@ export default function ReportPage() {
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-semibold text-slate-900">{declaration.label}</span>
                       {declaration.needsReview && (
-                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800 ring-1 ring-inset ring-amber-300">
+                        <span className="rounded-md bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800 ring-1 ring-inset ring-amber-300">
                           Needs review
                         </span>
                       )}
                       {declaration.corrected && (
-                        <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-bold text-blue-800 ring-1 ring-inset ring-blue-300">
+                        <span className="rounded-md bg-blue-100 px-2 py-0.5 text-[11px] font-bold text-blue-800 ring-1 ring-inset ring-blue-300">
                           Corrected by reviewer
                         </span>
                       )}
@@ -870,11 +870,11 @@ export default function ReportPage() {
                   >
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-semibold text-slate-900">{finding.label}</span>
-                      <span className="rounded-full bg-slate-800 px-2 py-0.5 font-mono text-[11px] font-medium text-white">
+                      <span className="rounded-md bg-slate-800 px-2 py-0.5 font-mono text-[11px] font-medium text-white">
                         {finding.legalCitation}
                       </span>
                       <span
-                        className={`rounded-full px-2 py-0.5 text-[11px] font-bold ring-1 ring-inset ${
+                        className={`rounded-md px-2 py-0.5 text-[11px] font-bold ring-1 ring-inset ${
                           finding.result === "no_issue_found"
                             ? "bg-green-100 text-green-800 ring-green-300"
                             : finding.decision === "accepted"
@@ -965,10 +965,10 @@ export default function ReportPage() {
                   >
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-semibold text-slate-900">{item.label}</span>
-                      <span className="rounded-full bg-slate-800 px-2 py-0.5 font-mono text-[11px] font-medium text-white">
+                      <span className="rounded-md bg-slate-800 px-2 py-0.5 font-mono text-[11px] font-medium text-white">
                         {item.legalCitation}
                       </span>
-                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800 ring-1 ring-inset ring-amber-300">
+                      <span className="rounded-md bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800 ring-1 ring-inset ring-amber-300">
                         Not assessed
                       </span>
                     </div>

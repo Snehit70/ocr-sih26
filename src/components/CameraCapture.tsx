@@ -194,7 +194,7 @@ export default function CameraCapture({
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-full bg-black/55 text-white"
+            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl bg-black/55 text-white"
             aria-label="Close camera"
           >
             <X className="h-5 w-5" aria-hidden="true" />
@@ -209,7 +209,7 @@ export default function CameraCapture({
                 current === "environment" ? "user" : "environment",
               )
             }
-            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-full bg-black/55 text-white"
+            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl bg-black/55 text-white"
             aria-label={
               facing === "environment"
                 ? "Switch to front camera"
@@ -249,7 +249,7 @@ export default function CameraCapture({
             <button
               type="button"
               onClick={onClose}
-              className="min-h-11 rounded-full px-3 text-sm font-medium text-white"
+              className="min-h-11 rounded-lg px-3 text-sm font-medium text-white"
             >
               Done
             </button>

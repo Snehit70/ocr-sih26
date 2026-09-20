@@ -109,7 +109,7 @@ export default function UploadZone({
             >
               <div className="flex flex-col items-center gap-1">
                 <span
-                  className={`flex h-9 w-9 items-center justify-center rounded-full border-2 ${
+                  className={`flex h-9 w-9 items-center justify-center rounded-xl border-2 ${
                     done
                       ? "border-green-600 bg-green-600 text-white"
                       : active
@@ -197,7 +197,7 @@ export default function UploadZone({
           type="button"
           disabled={disabled}
           onClick={openTakePhoto}
-          className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-blue-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-blue-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+          className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#1D4ED8] px-4 text-sm font-semibold text-white shadow-sm hover:bg-[#1E40AF] disabled:cursor-not-allowed disabled:bg-slate-300"
         >
           <Camera className="h-5 w-5" aria-hidden="true" />
           Take photo
@@ -208,7 +208,7 @@ export default function UploadZone({
           onClick={() => {
             if (!disabled) galleryInputRef.current?.click();
           }}
-          className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
         >
           <ImagePlus className="h-5 w-5" aria-hidden="true" />
           Choose from gallery
@@ -237,7 +237,7 @@ export default function UploadZone({
               : "border-slate-300 bg-slate-50"
         }`}
       >
-        <span className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 text-blue-800">
+        <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-100 text-blue-800">
           <Upload className="h-6 w-6" aria-hidden="true" />
         </span>
         <p className="text-sm font-semibold text-slate-900">
@@ -273,7 +273,7 @@ export default function UploadZone({
                     disabled={disabled}
                     onClick={() => onRemovePhoto(photo.photoId)}
                     aria-label={`Remove ${label}`}
-                    className="absolute top-2 right-2 inline-flex min-h-11 min-w-11 items-center justify-center rounded-full bg-black/65 text-white hover:bg-black/80 disabled:opacity-60"
+                    className="absolute top-2 right-2 inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl bg-black/65 text-white hover:bg-black/80 disabled:opacity-60"
                   >
                     <X className="h-4 w-4" aria-hidden="true" />
                   </button>

@@ -10,17 +10,18 @@ export default function AppShell({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-
-  if (pathname === "/") {
-    return <>{children}</>;
-  }
-
   const inspectPage = pathname === "/scan";
+  const isLanding = pathname === "/";
 
   return (
     <>
       <Header />
-      <main className="min-h-screen bg-slate-50">{children}</main>
+      <main
+        id="content"
+        className={isLanding ? undefined : "min-h-screen bg-white"}
+      >
+        {children}
+      </main>
       {inspectPage ? (
         <div className="hidden lg:block">
           <Footer />
